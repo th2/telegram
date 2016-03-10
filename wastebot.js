@@ -76,17 +76,19 @@ function query (url, callback) {
     var body = ''
     res.on('data', function (chunk) { body += chunk })
     res.on('end', function () {
-      if (body.indexOf('<html>') === -1) {
-        var result = JSON.parse(body)
-        if (result.ok) {
-          callback(result)
-        } else {
-          log(0, 'not ok:')
-          log(0, util.inspect(result))
+      if (body) {
+        var result
+        try {
+          result = JSON.parse(body)
+          if (result.ok) {
+            callback(result)
+          }
+        } catch (err) {
+          log(0, url + ' got html:')
+          log(0, body)
         }
       } else {
-        log(0, url + ' got html:')
-        log(0, body)
+        log(0, url + ' is empty')
       }
     })
   }).on('error', function (e) {

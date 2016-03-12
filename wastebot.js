@@ -51,7 +51,6 @@ function getNextDays (n) {
     var entry = appointments[i]
     if (entry.start > now && entry.start < future) {
       result.push(entry)
-      // console.log(entry.name, 'on', entry.start.getFullYear(), entry.start.getMonth(), entry.start.getDate());
     }
   }
   return result
@@ -66,9 +65,6 @@ function printList (list) {
     result += list[i].start.getFullYear() + '-' + list[i].start.getMonth() + '-' + list[i].start.getDate() + '-' + list[i].name
   }
   return result
-}
-function startsWith (string, prefix) {
-  return string.indexOf(prefix) === 0
 }
 
 function query (url, callback) {
@@ -119,6 +115,7 @@ function sendMessageMarkup (id, text, markup) {
   query(url, function () { })
 }
 
+// messaging loop
 function getUpdates (start) {
   var url = baseURL + 'getUpdates'
   if (start != null) {
@@ -230,7 +227,7 @@ function messagesRespond (updates) {
       } else {
         sendMessage(m.message.chat.id, 'Derzeit stehen keine Termine an.')
       }
-    } else if (startsWith(m.message.text, 'Erneut erinnern in') || m.message.text.toLowerCase() === 'nein') {
+    } else if (m.message.text.indexOf('Erneut erinnern in') === 0 || m.message.text.toLowerCase() === 'nein') {
       var openAppointments = false
       var now = new Date()
       var future = new Date()

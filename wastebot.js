@@ -41,22 +41,22 @@ fs.readFile('config/wastebot.users', 'utf8', function (errors, contents) {
 })
 
 // calender helper
-function getNextDays (n) {
+// get events upcomming in the next n days
+function getNextEvents (n) {
   var result = []
   var now = new Date()
-  var future = new Date()
-  future.setDate(now.getDate() + n)
 
   for (var i in appointments) {
     var entry = appointments[i]
-    if (entry.start > now && entry.start < future) {
+    if (entry.start > now && entry.start < now.setDate(now.getDate() + n)) {
       result.push(entry)
     }
   }
+
   return result
 }
 
-function printList (list) {
+function printEventList (list) {
   var result = ''
   for (var i in list) {
     if (i > 0) {
@@ -124,7 +124,7 @@ function getUpdates (start) {
 
   query(url, function (updates) {
     if (updates !== 'error') {
-      messagesRespond(updates)
+      messagesProcess(updates)
     }
 
     messagesGenerate()
@@ -134,126 +134,126 @@ function getUpdates (start) {
   })
 }
 
-// respond to incomming messages
-function messagesRespond (updates) {
+function messagesProcess (updates) {
   for (var i in updates.result) {
     var m = updates.result[i]
-
     if (m.update_id > updateID) {
       updateID = m.update_id
     }
-    var message = m.message
 
-    log(message.chat.id, message.date + ' ' + message.from.first_name +
-      '(' + message.from.id + ')@' + message.chat.first_name + '(' +
-      message.chat.id + '): ' + message.text)
+    messageRespond(m.message)
+  }
+}
 
-    if (m.message.text === undefined) {
-      log(message.chat.id, util.inspect(message))
-      sendMessage(m.message.chat.id, 'Sorry, I could not understand message.')
-    } else if (m.message.text === '/kalender') {
-      sendMessage(m.message.chat.id, 'Die Termine der nächsten zwei Wochen sind:\n' + printList(getNextDays(14)))
-    } else if (m.message.text === '/start') {
-      if (users[m.message.chat.id]) {
-        sendMessage(m.message.chat.id, 'Du stehst bereits auf der Nutzerliste. Um von der Liste entfernt zu werden sende /stop')
-      } else {
-        sendMessage(m.message.chat.id, 'Du wurdest zur Nutzerliste hinzugefügt.')
-        fs.appendFile('config/wastebot.users', m.message.chat.id + '\n', function (err) {
-          if (err !== null) {
-            console.log('error3:' + err)
-          }
-        })
-        fs.writeFile('config/' + m.message.chat.id + '.username', m.message.chat.first_name, function (err) {
-          if (err !== null) {
-            console.log('error4:' + err)
-          }
-        })
+// respond to incomming messages
+function messageRespond (message) {
+  log(message.chat.id, message.date + ' ' + message.from.first_name +
+    '(' + message.from.id + ')@' + message.chat.first_name + '(' +
+    message.chat.id + '): ' + message.text)
 
-        var newUser = {}
-        newUser.name = m.message.chat.first_name
-        users[m.message.chat.id] = newUser
-      }
-    } else if (m.message.text === '/stop') {
-      if (users[m.message.chat.id]) {
-        sendMessage(m.message.chat.id, 'Du wurdest von der Nutzerliste entfernt. Um wieder als Nutzer hinzugefügt zu werden sende /start')
-        var usersNew = {}
-        for (var a in users) {
-          if (a !== m.message.chat.id) {
-            usersNew[a] = users[a]
-          }
+  if (message.text === undefined) {
+    log(message.chat.id, util.inspect(message))
+    sendMessage(message.chat.id, 'Sorry, I could not understand message.')
+  } else if (message.text === '/kalender') {
+    sendMessage(message.chat.id, 'Die Termine der nächsten zwei Wochen sind:\n' + printEventList(getNextEvents(14)))
+  } else if (message.text === '/start') {
+    if (users[message.chat.id]) {
+      sendMessage(message.chat.id, 'Du stehst bereits auf der Nutzerliste. Um von der Liste entfernt zu werden sende /stop')
+    } else {
+      sendMessage(message.chat.id, 'Du wurdest zur Nutzerliste hinzugefügt.')
+      fs.appendFile('config/wastebot.users', message.chat.id + '\n', function (err) {
+        if (err !== null) {
+          console.log('error3:' + err)
         }
-        users = usersNew
-
-        var userText = ''
-        for (var a2 in users) {
-          userText += a2 + '\n'
+      })
+      fs.writeFile('config/' + message.chat.id + '.username', message.chat.first_name, function (err) {
+        if (err !== null) {
+          console.log('error4:' + err)
         }
+      })
 
-        fs.writeFile('config/wastebot.users', userText, function (err) {
-          console.log('error5:' + err)
-        })
-      } else {
-        sendMessage(m.message.chat.id, 'Du stehst nicht auf der Nutzerliste. Um als Nutzer hinzugefügt zu werden sende /start')
+      users[message.chat.id] = { name: message.chat.first_name }
+    }
+  } else if (message.text === '/stop') {
+    if (users[message.chat.id]) {
+      sendMessage(message.chat.id, 'Du wurdest von der Nutzerliste entfernt. Um wieder als Nutzer hinzugefügt zu werden sende /start')
+      var usersNew = {}
+      for (var a in users) {
+        if (a !== message.chat.id) {
+          usersNew[a] = users[a]
+        }
       }
-    } else if (m.message.text === '/test') {
-      sendMessageMarkup(m.message.chat.id, 'Morgen ist ' + appointments[0].name + '. Steht die Mülltonne schon draußen?',
-        '{"keyboard": [["Müll steht draußen"], ["Erneut erinnern in 10 Minuten"], ["Erneut erinnern in 2 Stunden"]],"one_time_keyboard": true}'
-      )
-    } else if (m.message.text === 'Müll steht draußen' || m.message.text.toLowerCase() === 'ja') {
-      var openAppointments = false
-      var now = new Date()
-      var future = new Date()
-      future.setHours(now.getHours() + hoursPrev)
+      users = usersNew
+
+      var userText = ''
+      for (var a2 in users) {
+        userText += a2 + '\n'
+      }
+
+      fs.writeFile('config/wastebot.users', userText, function (err) {
+        console.log('error5:' + err)
+      })
+    } else {
+      sendMessage(message.chat.id, 'Du stehst nicht auf der Nutzerliste. Um als Nutzer hinzugefügt zu werden sende /start')
+    }
+  } else if (message.text === '/test') {
+    sendMessageMarkup(message.chat.id, 'Morgen ist ' + appointments[0].name + '. Steht die Mülltonne schon draußen?',
+      '{"keyboard": [["Müll steht draußen"], ["Erneut erinnern in 10 Minuten"], ["Erneut erinnern in 2 Stunden"]],"one_time_keyboard": true}'
+    )
+  } else if (message.text === 'Müll steht draußen' || message.text.toLowerCase() === 'ja') {
+    var openAppointments = false
+    var now = new Date()
+    var future = new Date()
+    future.setHours(now.getHours() + hoursPrev)
+
+    for (var a in appointments) {
+      if (appointments[a].todo && appointments[a].start > now && appointments[a].start < future) {
+        openAppointments = true
+      }
+    }
+    if (openAppointments) {
+      sendMessage(message.chat.id, 'Sehr gut, vielen Dank.')
 
       for (var a in appointments) {
-        if (appointments[a].todo && appointments[a].start > now && appointments[a].start < future) {
-          openAppointments = true
+        if (appointments[a].start > now && appointments[a].start < future) {
+          appointments[a].todo = false
         }
       }
-      if (openAppointments) {
-        sendMessage(m.message.chat.id, 'Sehr gut, vielen Dank.')
 
-        for (var a in appointments) {
-          if (appointments[a].start > now && appointments[a].start < future) {
-            appointments[a].todo = false
-          }
+      for (var u in users) {
+        if (u !== message.chat.id) {
+          sendMessage(u, users[message.chat.id].name + ' hat den Müll rausgestellt!')
         }
-
-        for (var u in users) {
-          if (u !== m.message.chat.id) {
-            sendMessage(u, users[m.message.chat.id].name + ' hat den Müll rausgestellt!')
-          }
-        }
-      } else {
-        sendMessage(m.message.chat.id, 'Derzeit stehen keine Termine an.')
-      }
-    } else if (m.message.text.indexOf('Erneut erinnern in') === 0 || m.message.text.toLowerCase() === 'nein') {
-      var openAppointments = false
-      var now = new Date()
-      var future = new Date()
-      future.setHours(now.getHours() + hoursPrev)
-      for (var a in appointments) {
-        if (appointments[a].todo && appointments[a].start > now && appointments[a].start < future) {
-          openAppointments = true
-        }
-      }
-      if (openAppointments) {
-        sendMessage(m.message.chat.id, 'Okay, ich erinnere dich erneut in einer Stunde.')
-      } else {
-        sendMessage(m.message.chat.id, 'Derzeit stehen keine Termine an.')
       }
     } else {
-      sendMessage(m.message.chat.id, 'Sorry, I could not understand message: ' + m.message.text)
+      sendMessage(message.chat.id, 'Derzeit stehen keine Termine an.')
     }
+  } else if (message.text.indexOf('Erneut erinnern in') === 0 || message.text.toLowerCase() === 'nein') {
+    var openAppointments = false
+    var now = new Date()
+    var future = new Date()
+    future.setHours(now.getHours() + hoursPrev)
+    for (var a in appointments) {
+      if (appointments[a].todo && appointments[a].start > now && appointments[a].start < future) {
+        openAppointments = true
+      }
+    }
+    if (openAppointments) {
+      sendMessage(message.chat.id, 'Okay, ich erinnere dich erneut in einer Stunde.')
+    } else {
+      sendMessage(message.chat.id, 'Derzeit stehen keine Termine an.')
+    }
+  } else {
+    sendMessage(message.chat.id, 'Sorry, I could not understand message: ' + message.text)
   }
 }
 
 // send outgoing messages
 function messagesGenerate () {
+  // get appointments less then 6 hours in the future
   var now = new Date()
   var future = new Date()
   future.setHours(now.getHours() + hoursPrev)
-  // get appointments less then 6 hours in the future
 
   for (var a in appointments) {
     if (appointments[a].todo && appointments[a].start > now && appointments[a].start < future) {

@@ -73,15 +73,13 @@ function query (url, callback) {
     res.on('data', function (chunk) { body += chunk })
     res.on('end', function () {
       if (body) {
-        var result
         try {
-          result = JSON.parse(body)
+          var result = JSON.parse(body)
           if (result.ok) {
             callback(result)
           }
         } catch (err) {
-          log(0, url + ' got html:')
-          log(0, body)
+          log(0, url + ' got html:' + body)
         }
       } else {
         log(0, url + ' is empty')
@@ -124,7 +122,14 @@ function getUpdates (start) {
 
   query(url, function (updates) {
     if (updates !== 'error') {
-      messagesProcess(updates)
+      for (var i in updates.result) {
+        var m = updates.result[i]
+        if (m.update_id > updateID) {
+          updateID = m.update_id
+        }
+
+        messageRespond(m.message)
+      }
     }
 
     messagesGenerate()
@@ -132,17 +137,6 @@ function getUpdates (start) {
     // call function again after 2s
     setTimeout(getUpdates(updateID + 1), 2000)
   })
-}
-
-function messagesProcess (updates) {
-  for (var i in updates.result) {
-    var m = updates.result[i]
-    if (m.update_id > updateID) {
-      updateID = m.update_id
-    }
-
-    messageRespond(m.message)
-  }
 }
 
 // respond to incomming messages
@@ -217,24 +211,20 @@ function removeUser (id) {
 }
 
 function appointmentDone (id) {
-  var openAppointments = false
   var now = new Date()
   var future = new Date()
   future.setHours(now.getHours() + hoursPrev)
 
+  var openAppointments = false
   for (var a in appointments) {
     if (appointments[a].todo && appointments[a].start > now && appointments[a].start < future) {
       openAppointments = true
+      appointments[a].todo = false
     }
   }
+
   if (openAppointments) {
     sendMessage(id, 'Sehr gut, vielen Dank.')
-
-    for (var a in appointments) {
-      if (appointments[a].start > now && appointments[a].start < future) {
-        appointments[a].todo = false
-      }
-    }
 
     for (var u in users) {
       if (u !== id) {
